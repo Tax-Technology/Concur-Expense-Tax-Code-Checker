@@ -3,19 +3,6 @@ import pandas as pd
 
 
 def parse_concur_report(data, expense_col, amount_col, tax_col, category_col, country_col, currency_col):
-    """
-    Parses a SAP Concur T&E report into a Pandas dataframe
-    Args:
-        data (pandas.DataFrame): The uploaded report data
-        expense_col (str): Column name containing expense description (e.g., Hotel, Meal)
-        amount_col (str): Column name containing expense amount
-        tax_col (str): Column name containing tax amount
-        category_col (str): Column name containing expense category
-        country_col (str): Column name containing merchant country
-        currency_col (str): Column name containing expense currency
-    Returns:
-        pandas.DataFrame: A dataframe containing parsed expense data
-    """
     df = pd.DataFrame({
         "Expense": data[expense_col],
         "Amount": pd.to_numeric(data[amount_col], errors='coerce'),
@@ -29,44 +16,20 @@ def parse_concur_report(data, expense_col, amount_col, tax_col, category_col, co
 
 
 def parse_tax_config(data, code_col, rate_col, category_col, country_col):
-    """
-    Parses a SAP Concur tax code configuration file into a dictionary
-    Args:
-        data (pandas.DataFrame): The uploaded tax config data
-        code_col (str): Column name containing tax code
-        rate_col (str): Column name containing tax rate
-        category_col (str): Column name containing expense category
-        country_col (str): Column name containing merchant country
-    Returns:
-        dict: A dictionary mapping tax codes to tax rates for specific expense categories and countries
-    """
     tax_config = {}
-    for index, row in data.iterrows():
+    for _, row in data.iterrows():
         code = row[code_col]
         rate = row[rate_col]
-        category = row[category_col]
-        country = row[country_col]
-
-        if pd.isna(category):
-            category = None
-        if pd.isna(country):
-            country = None
+        category = row[category_col] if not pd.isna(row[category_col]) else None
+        country = row[country_col] if not pd.isna(row[country_col]) else None
 
         tax_config[(category, country)] = rate
     return tax_config
 
 
 def analyze_vat(expense_data, tax_config):
-    """
-    Analyzes VAT in expense data based on tax configuration
-    Args:
-        expense_data (pandas.DataFrame): The parsed expense data
-        tax_config (dict): The parsed tax code configuration
-    Returns:
-        pandas.DataFrame: A dataframe with identified VAT issues
-    """
     issues = []
-    for index, row in expense_data.iterrows():
+    for _, row in expense_data.iterrows():
         expense = row["Expense"]
         amount = row["Amount"]
         tax = row["Tax"]
@@ -86,24 +49,21 @@ def analyze_vat(expense_data, tax_config):
 
 
 def load_file(uploaded_file):
-    """
-    Loads a file based on its type (CSV, XLSX, XLS)
-    Args:
-        uploaded_file (streamlit.UploadedFile): The uploaded file object
-    Returns:
-        pandas.DataFrame or None: The loaded data as a DataFrame or None if the file type is not supported
-    """
-    if uploaded_file is not None:
-        file_extension = uploaded_file.name.split('.')[-1].lower()
+    try:
+        if uploaded_file is not None:
+            file_extension = uploaded_file.name.split('.')[-1].lower()
 
-        if file_extension == 'csv':
-            df = pd.read_csv(uploaded_file)
-        elif file_extension in ['xlsx', 'xls']:
-            df = pd.read_excel(uploaded_file, engine='openpyxl')
+            if file_extension == 'csv':
+                df = pd.read_csv(uploaded_file)
+            elif file_extension in ['xlsx', 'xls']:
+                df = pd.read_excel(uploaded_file, engine='openpyxl')
+            else:
+                st.error("Unsupported file type. Please upload a CSV or Excel file.")
+                return None
+
+            return df
         else:
-            st.error("Unsupported file type. Please upload a CSV or Excel file.")
             return None
-
-        return df
-    else:
+    except Exception as e:
+        st.error(f"Error loading file: {e}")
         return None
